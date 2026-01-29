@@ -262,6 +262,11 @@
         if (hasRespondedRef.current || phase !== 'response') return;
         hasRespondedRef.current = true;
 
+        // Haptic feedback - subtle vibration on button press
+        if (navigator.vibrate) {
+          navigator.vibrate(10); // 10ms vibration
+        }
+
         const responseTime = performance.now();
         const reactionTimeMs = Math.round(responseTime - flashEndTimeRef.current);
 
@@ -336,7 +341,7 @@
               <div className="bg-gray-800/50 p-4 rounded-lg mb-6 text-sm space-y-2">
                 <p>• Hold device vertically (portrait mode)</p>
                 <p>• Three buttons: LEFT, SAME, RIGHT</p>
-                <p>• Respond quickly when buttons light up</p>
+                <p>• Respond quickly after blocks flash</p>
               </div>
               
               <p className="text-gray-400 text-sm mb-6">1 practice trial + 13 test trials</p>
