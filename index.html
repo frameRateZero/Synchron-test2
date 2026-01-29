@@ -4,135 +4,428 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
-  <title>Synchrony Perception Test</title>
-
+  <!-- PWA Meta Tags -->
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="manifest.json">
-
+  <meta name="apple-mobile-web-app-title" content="Synchrony Test">
+  <meta name="theme-color" content="#1f2937">
+  
+  <title>Synchrony Perception Test</title>
+  
+  <!-- PWA Manifest -->
+  <link rel="manifest" href="./manifest.json">
+  
+  <!-- Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
-
+  
   <style>
-    body { background-color: #111827; color: white; touch-action: manipulation; }
-    /* Force 120Hz on iOS by keeping a tiny element animating */
-    .ios-120hz-hack {
-      width: 1px; height: 1px; opacity: 0.01; position: fixed;
-      animation: jitter 0.01s infinite linear;
-      will-change: transform; pointer-events: none;
+    /* Force hardware acceleration */
+    * {
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
     }
-    @keyframes jitter { 
-      0% { transform: translateY(0); } 
-      50% { transform: translateY(1px); } 
-      100% { transform: translateY(0); } 
+    
+    /* Prevent pull-to-refresh and overscroll */
+    body {
+      overscroll-behavior: none;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-x pan-y;
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+    
+    /* Force GPU acceleration on all elements */
+    #root {
+      will-change: transform;
+      transform: translateZ(0);
+    }
+    
+    /* Safari 120Hz hack - constant animation forces high refresh rate */
+    .safari-120hz-hack {
+      width: 1px;
+      height: 1px;
+      opacity: 0.01;
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      animation: jitter 0.008333s infinite linear;
+      will-change: transform;
+    }
+    
+    @keyframes jitter {
+      0% { transform: translateY(0) translateZ(0); }
+      50% { transform: translateY(0.5px) translateZ(0); }
+      100% { transform: translateY(0) translateZ(0); }
     }
   </style>
 </head>
 <body>
-  <div class="ios-120hz-hack"></div>
+  <!-- Safari 120Hz hack - invisible constantly animating element -->
+  <div class="safari-120hz-hack"></div>
+  
   <div id="root"></div>
-
+  
+  <!-- React and Babel -->
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
+  
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('./service-worker.js')
+          .then(reg => console.log('Service Worker registered'))
+          .catch(err => console.log('Service Worker registration failed:', err));
+      });
+    }
+  </script>
+  
+  <!-- React Component - Embedded Directly -->
   <script type="text/babel">
     const { useState, useEffect, useRef } = React;
 
     function SynchronyTest() {
       const [phase, setPhase] = useState('intro');
+      const [fps, setFps] = useState(0);
+      const [is120Hz, setIs120Hz] = useState(false);
+      const [currentTrial, setCurrentTrial] = useState(-1);
       const [results, setResults] = useState([]);
       const [trials, setTrials] = useState([]);
-      const [currentTrialIdx, setCurrentTrialIdx] = useState(0);
-      
+      const [animationOffset, setAnimationOffset] = useState(0);
+
+      // DOM Refs for direct manipulation (Bypasses React render lag)
       const leftEmojiRef = useRef(null);
       const rightEmojiRef = useRef(null);
+      
+      const timerRef = useRef(null);
+      const hasRespondedRef = useRef(false);
 
-      const offsets = [0, -16.67, 16.67, -33.33, 33.33, -50, 50]; // ms offsets
+      const offsets = [0, -8.33, 8.33, -16.67, 16.67, -25, 25, -33.33, 33.33, -50, 50];
 
       useEffect(() => {
-        setTrials([...offsets].sort(() => Math.random() - 0.5));
+        const trialList = [...offsets].sort(() => Math.random() - 0.5);
+        setTrials(trialList);
       }, []);
 
-      const runTrial = () => {
-        setPhase('waiting');
-        const offset = trials[currentTrialIdx];
+      // Frame Rate Detection Logic
+      useEffect(() => {
+        let frameCount = 0;
+        let startTime = performance.now();
+        let rafId;
         
-        setTimeout(() => {
-          setPhase('test');
-          const startTime = performance.now();
-          
-          // Use requestAnimationFrame for 120Hz precision
-          const animate = (now) => {
-            const elapsed = now - startTime;
+        const checkFps = (now) => {
+          frameCount++;
+          const elapsed = now - startTime;
+          if (elapsed >= 1000) {
+            const currentFps = Math.round((frameCount * 1000) / elapsed);
+            setFps(currentFps);
+            setIs120Hz(currentFps > 100); // Threshold for ProMotion
             
-            // Left Emoji (Base)
-            if (elapsed >= 500 && leftEmojiRef.current) {
-              leftEmojiRef.current.style.opacity = 1;
-            }
-            // Right Emoji (Offset)
-            if (elapsed >= (500 + offset) && rightEmojiRef.current) {
-              rightEmojiRef.current.style.opacity = 1;
-            }
+            // Reset for continuous monitoring while on intro screen
+            frameCount = 0;
+            startTime = now;
+          }
+          rafId = requestAnimationFrame(checkFps);
+        };
+        
+        if (phase === 'intro') {
+          rafId = requestAnimationFrame(checkFps);
+        }
+        
+        return () => {
+          if (rafId) cancelAnimationFrame(rafId);
+        };
+      }, [phase]);
 
-            if (elapsed < 1000) {
-              requestAnimationFrame(animate);
-            } else {
-              setPhase('response');
-            }
-          };
-          requestAnimationFrame(animate);
-        }, 1000);
+      // Stress Test Animation - keeps frame rate elevated
+      useEffect(() => {
+        let rafId;
+        let lastTime = performance.now();
+        
+        const animate = (currentTime) => {
+          const delta = currentTime - lastTime;
+          lastTime = currentTime;
+          
+          // Much faster animation to stress the frame rate
+          setAnimationOffset(prev => (prev + delta * 0.2) % 360);
+          
+          rafId = requestAnimationFrame(animate);
+        };
+        
+        rafId = requestAnimationFrame(animate);
+        
+        return () => {
+          if (rafId) cancelAnimationFrame(rafId);
+        };
+      }, []);
+
+      const startTest = () => {
+        setPhase('practice');
+        setCurrentTrial(-1);
+        // Give the DOM a moment to mount before starting the practice trial
+        setTimeout(() => startTrial(-1), 100);
       };
 
-      const handleResponse = (answer) => {
-        const newResult = { offset: trials[currentTrialIdx], response: answer };
-        setResults([...results, newResult]);
-        
-        if (currentTrialIdx < trials.length - 1) {
-          setCurrentTrialIdx(currentTrialIdx + 1);
-          setPhase('intro');
+      const startTrial = (trialNum) => {
+        hasRespondedRef.current = false;
+        const offset = trialNum === -1 ? 0 : trials[trialNum];
+        setPhase(trialNum === -1 ? 'practice' : 'fixation');
+
+        // 1. Fixation Period
+        timerRef.current = setTimeout(() => {
+          runStimulus(offset);
+        }, 1500);
+      };
+
+      const runStimulus = (offsetMs) => {
+        setPhase('stimulus');
+        const startTime = performance.now();
+        const duration = 100; // Visible duration in ms
+
+        const animate = (currentTime) => {
+          const elapsed = currentTime - startTime;
+
+          if (offsetMs >= 0) {
+            // Left first (or simultaneous)
+            if (leftEmojiRef.current) {
+              leftEmojiRef.current.style.opacity = (elapsed >= 0 && elapsed <= duration) ? '1' : '0';
+            }
+            if (rightEmojiRef.current) {
+              rightEmojiRef.current.style.opacity = (elapsed >= offsetMs && elapsed <= offsetMs + duration) ? '1' : '0';
+            }
+          } else {
+            // Right first
+            const absOffset = Math.abs(offsetMs);
+            if (rightEmojiRef.current) {
+              rightEmojiRef.current.style.opacity = (elapsed >= 0 && elapsed <= duration) ? '1' : '0';
+            }
+            if (leftEmojiRef.current) {
+              leftEmojiRef.current.style.opacity = (elapsed >= absOffset && elapsed <= absOffset + duration) ? '1' : '0';
+            }
+          }
+
+          // Check if the sequence is finished (max offset + duration)
+          if (elapsed < Math.abs(offsetMs) + duration + 16) {
+            requestAnimationFrame(animate);
+          } else {
+            setPhase('response');
+          }
+        };
+
+        requestAnimationFrame(animate);
+      };
+
+      const handleResponse = (response) => {
+        if (hasRespondedRef.current || phase !== 'response') return;
+        hasRespondedRef.current = true;
+
+        const offset = currentTrial === -1 ? 0 : trials[currentTrial];
+        if (currentTrial >= 0) {
+          setResults(prev => [...prev, { trial: currentTrial + 1, offset, response }]);
+        }
+
+        if (currentTrial >= trials.length - 1) {
+          setPhase('complete');
         } else {
-          setPhase('finished');
+          setPhase('waiting');
+          timerRef.current = setTimeout(() => {
+            const next = currentTrial + 1;
+            setCurrentTrial(next);
+            startTrial(next);
+          }, 1500);
         }
       };
 
-      if (phase === 'finished') {
+      // Intro screen
+      if (phase === 'intro') {
         return (
-          <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
-            <h1 className="text-3xl font-bold mb-4">Test Complete</h1>
-            <pre className="bg-gray-800 p-4 rounded text-left overflow-auto max-w-full">
-              {JSON.stringify(results, null, 2)}
-            </pre>
-            <button onClick={() => window.location.reload()} className="mt-6 bg-blue-600 px-6 py-2 rounded">Restart</button>
+          <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8" style={{ willChange: 'transform' }}>
+            <div className="max-w-md text-center">
+              <h1 className="text-3xl font-bold mb-4">Synchrony Perception Test</h1>
+              
+              {/* FPS Monitor Badge with Stress Test Animation */}
+              <div className="mb-6 relative">
+                <div className={`inline-block px-4 py-2 rounded-full text-sm font-mono ${is120Hz ? 'bg-green-900 text-green-400' : 'bg-yellow-900 text-yellow-400'}`}>
+                  Detected Refresh Rate: {fps}Hz
+                </div>
+                
+                {/* Spinning stress test indicators with will-change for GPU acceleration */}
+                <div className="flex justify-center gap-2 mt-3">
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="w-3 h-3 rounded-full bg-blue-500"
+                      style={{
+                        transform: `translateY(${Math.sin((animationOffset + i * 72) * Math.PI / 180) * 12}px) translateZ(0)`,
+                        opacity: 0.3 + (Math.sin((animationOffset + i * 72) * Math.PI / 180) * 0.5 + 0.5) * 0.7,
+                        willChange: 'transform, opacity'
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Animation running to maintain high refresh rate</p>
+              </div>
+              
+              {!is120Hz && fps > 0 && (
+                <div className="bg-yellow-600/20 border border-yellow-600 text-yellow-200 p-3 rounded-lg mb-6 text-sm">
+                  <strong>⚠️ Safari Limitation:</strong> Your screen is running at {fps}Hz. Safari may cap at 60Hz even on 120Hz displays. For best results:
+                  <ul className="mt-2 text-left list-disc list-inside">
+                    <li>Ensure Low Power Mode is OFF</li>
+                    <li>Close all other apps/tabs</li>
+                    <li>Keep screen fully bright</li>
+                    <li>Try scrolling the page before starting</li>
+                  </ul>
+                </div>
+              )}
+              
+              <p className="mb-4">You will see two blue squares flash briefly, side by side.</p>
+              <p className="mb-4">If they appear <strong>synchronous</strong> (at the same time), tap <span className="text-green-400">YES</span>.</p>
+              <p className="mb-6">If they appear <strong>asynchronous</strong> (at different times), tap <span className="text-red-400">NO</span>.</p>
+              
+              <div className="space-y-3 mb-6 text-left bg-gray-800 p-4 rounded-lg text-sm">
+                <p>1. Use <strong>one hand</strong> for each button</p>
+                <p>2. Keep your device <strong>horizontal</strong> and stable</p>
+                <p>3. Tap as soon as the buttons light up</p>
+              </div>
+              
+              <p className="mb-4 text-gray-400">You'll start with 1 practice trial, then complete 11 test trials.</p>
+              
+              <button
+                onClick={startTest}
+                className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-4 px-8 rounded-xl text-xl transition-all active:scale-95"
+              >
+                Start Test
+              </button>
+            </div>
           </div>
         );
       }
 
-      return (
-        <div className="flex flex-col items-center justify-center min-h-screen p-4">
-          <h1 className="text-2xl mb-8">Synchrony Test</h1>
-          
-          <div className="flex gap-12 mb-12">
-            <div className="w-24 h-24 bg-gray-800 rounded flex items-center justify-center border-2 border-gray-600">
-              <span ref={leftEmojiRef} className="text-5xl opacity-0 transition-none">🟦</span>
+      // Results screen
+      if (phase === 'complete') {
+        // Create CSV format
+        const csvSummary = ['Offset_ms,Synchronous_Count,Total_Trials,Proportion'];
+        const uniqueOffsets = [0, 8.33, 16.67, 25, 33.33, 50];
+        uniqueOffsets.forEach(absOffset => {
+          const offsetResults = results.filter(r => Math.abs(r.offset) === absOffset);
+          const yesCount = offsetResults.filter(r => r.response === 'Yes').length;
+          const proportion = offsetResults.length > 0 ? (yesCount / offsetResults.length).toFixed(2) : '0.00';
+          csvSummary.push(`${absOffset},${yesCount},${offsetResults.length},${proportion}`);
+        });
+
+        const csvDetails = ['Trial,Offset_ms,Response'];
+        results.forEach(r => {
+          csvDetails.push(`${r.trial},${r.offset},${r.response}`);
+        });
+
+        const csvText = csvSummary.join('\n') + '\n\n' + csvDetails.join('\n');
+
+        // Create JSON format
+        const jsonData = {
+          summary: uniqueOffsets.map(absOffset => {
+            const offsetResults = results.filter(r => Math.abs(r.offset) === absOffset);
+            const yesCount = offsetResults.filter(r => r.response === 'Yes').length;
+            const proportion = offsetResults.length > 0 ? yesCount / offsetResults.length : 0;
+            return {
+              offset_ms: absOffset,
+              synchronous_count: yesCount,
+              total_trials: offsetResults.length,
+              proportion: parseFloat(proportion.toFixed(2))
+            };
+          }),
+          all_trials: results.map(r => ({
+            trial: r.trial,
+            offset_ms: r.offset,
+            response: r.response
+          }))
+        };
+
+        const jsonText = JSON.stringify(jsonData, null, 2);
+
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
+            <div className="max-w-4xl w-full">
+              <h1 className="text-3xl font-bold mb-8 text-center">Test Complete!</h1>
+              
+              <div className="bg-gray-800 rounded-lg p-6 mb-6">
+                <h2 className="text-xl font-bold mb-4">CSV Format (Select All & Copy)</h2>
+                <textarea
+                  readOnly
+                  value={csvText}
+                  className="w-full h-64 bg-gray-900 text-green-400 font-mono text-sm p-4 rounded border border-gray-700 focus:outline-none focus:border-blue-500"
+                  onClick={(e) => e.target.select()}
+                />
+                <p className="mt-2 text-sm text-gray-400">Click inside the box to select all, then Ctrl+C (or Cmd+C) to copy</p>
+              </div>
+
+              <div className="bg-gray-800 rounded-lg p-6">
+                <h2 className="text-xl font-bold mb-4">JSON Format (Select All & Copy)</h2>
+                <textarea
+                  readOnly
+                  value={jsonText}
+                  className="w-full h-96 bg-gray-900 text-blue-400 font-mono text-sm p-4 rounded border border-gray-700 focus:outline-none focus:border-blue-500"
+                  onClick={(e) => e.target.select()}
+                />
+                <p className="mt-2 text-sm text-gray-400">Click inside the box to select all, then Ctrl+C (or Cmd+C) to copy</p>
+              </div>
             </div>
-            <div className="w-24 h-24 bg-gray-800 rounded flex items-center justify-center border-2 border-gray-600">
-              <span ref={rightEmojiRef} className="text-5xl opacity-0 transition-none">🟦</span>
+          </div>
+        );
+      }
+
+      // Trial display
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white select-none touch-none" style={{ willChange: 'transform' }}>
+          <div className="mb-8 text-xl text-gray-400">
+            {currentTrial === -1 ? (
+              <span className="text-yellow-400 font-bold">Practice Trial</span>
+            ) : (
+              `Trial ${currentTrial + 1} of ${trials.length}`
+            )}
+          </div>
+
+          <div className="flex gap-8 items-center justify-center mb-12" style={{ height: '200px' }}>
+            <div className="w-32 h-32 flex items-center justify-center border-4 border-gray-700 rounded-lg bg-gray-800" style={{ willChange: 'transform' }}>
+              <div ref={leftEmojiRef} className="text-7xl opacity-0 transition-none" style={{ willChange: 'opacity', transform: 'translateZ(0)' }}>🟦</div>
+            </div>
+            <div className="w-32 h-32 flex items-center justify-center border-4 border-gray-700 rounded-lg bg-gray-800" style={{ willChange: 'transform' }}>
+              <div ref={rightEmojiRef} className="text-7xl opacity-0 transition-none" style={{ willChange: 'opacity', transform: 'translateZ(0)' }}>🟦</div>
             </div>
           </div>
 
-          {phase === 'intro' && (
-            <button onClick={runTrial} className="bg-blue-600 px-10 py-4 rounded-xl text-xl font-bold">Start Trial</button>
-          )}
+          <div className="flex flex-col sm:flex-row gap-4 px-4">
+            <button 
+              onPointerDown={() => handleResponse('No')}
+              disabled={phase !== 'response'}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors shadow-lg disabled:opacity-30 disabled:cursor-not-allowed">
+              NO - Asynchronous
+            </button>
+            <button 
+              onPointerDown={() => handleResponse('Yes')}
+              disabled={phase !== 'response'}
+              className="bg-green-600 hover:bg-green-700 text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors shadow-lg disabled:opacity-30 disabled:cursor-not-allowed">
+              YES - Synchronous
+            </button>
+          </div>
 
-          {phase === 'response' && (
-            <div className="flex gap-4">
-              <button onClick={() => handleResponse('No')} className="bg-red-600 px-8 py-4 rounded-lg">Asynchronous</button>
-              <button onClick={() => handleResponse('Yes')} className="bg-green-600 px-8 py-4 rounded-lg">Synchronous</button>
+          {phase === 'waiting' && (
+            <div className="text-gray-500 text-lg mt-8">
+              {currentTrial === -1 ? 'Starting test trials...' : 'Preparing next trial...'}
             </div>
           )}
-          
-          <div className="mt-8 text-gray-500">Trial {currentTrialIdx + 1} of {trials.length}</div>
+
+          {(phase === 'fixation' || phase === 'practice') && (
+            <div className="text-gray-600 text-lg mt-8">
+              Get ready...
+            </div>
+          )}
         </div>
       );
     }
