@@ -4,95 +4,139 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
   
-  <!-- PWA Meta Tags -->
-  <meta name="mobile-web-app-capable" content="yes">
+  <title>Synchrony Perception Test</title>
+
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Synchrony Test">
-  <meta name="theme-color" content="#1f2937">
-  
-  <!-- Force High Refresh Rate on iOS -->
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  
-  <title>Synchrony Perception Test</title>
-  
-  <!-- PWA Manifest -->
-  <link rel="manifest" href="./manifest.json">
-  
-  <!-- Tailwind CSS -->
+  <link rel="manifest" href="manifest.json">
+
   <script src="https://cdn.tailwindcss.com"></script>
-  
+
   <style>
-    /* Force hardware acceleration */
-    * {
-      -webkit-transform: translateZ(0);
-      transform: translateZ(0);
-      -webkit-backface-visibility: hidden;
-      backface-visibility: hidden;
+    body { background-color: #111827; color: white; touch-action: manipulation; }
+    /* Force 120Hz on iOS by keeping a tiny element animating */
+    .ios-120hz-hack {
+      width: 1px; height: 1px; opacity: 0.01; position: fixed;
+      animation: jitter 0.01s infinite linear;
+      will-change: transform; pointer-events: none;
     }
-    
-    /* Prevent pull-to-refresh and overscroll */
-    body {
-      overscroll-behavior: none;
-      -webkit-overflow-scrolling: touch;
-      touch-action: pan-x pan-y;
-      position: fixed;
-      width: 100%;
-      height: 100%;
-      overflow: hidden;
-    }
-    
-    /* Force GPU acceleration on all elements */
-    #root {
-      will-change: transform;
-      transform: translateZ(0);
-    }
-    
-    /* Safari 120Hz hack - constant animation forces high refresh rate */
-    .safari-120hz-hack {
-      width: 1px;
-      height: 1px;
-      opacity: 0.01;
-      position: absolute;
-      top: 0;
-      left: 0;
-      pointer-events: none;
-      animation: jitter 0.008333s infinite linear;
-      will-change: transform;
-    }
-    
-    @keyframes jitter {
-      0% { transform: translateY(0) translateZ(0); }
-      50% { transform: translateY(0.5px) translateZ(0); }
-      100% { transform: translateY(0) translateZ(0); }
+    @keyframes jitter { 
+      0% { transform: translateY(0); } 
+      50% { transform: translateY(1px); } 
+      100% { transform: translateY(0); } 
     }
   </style>
 </head>
 <body>
-  <!-- Safari 120Hz hack - invisible constantly animating element -->
-  <div class="safari-120hz-hack"></div>
-  
+  <div class="ios-120hz-hack"></div>
   <div id="root"></div>
-  
-  <!-- React and Babel -->
+
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  
-  <!-- Service Worker Registration -->
-  <script>
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('./service-worker.js')
-          .then(reg => console.log('Service Worker registered'))
-          .catch(err => console.log('Service Worker registration failed:', err));
-      });
-    }
-  </script>
-  
-  <!-- Your React Component -->
-  <script type="text/babel" src="./synchrony-test.jsx"></script>
+
   <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    function SynchronyTest() {
+      const [phase, setPhase] = useState('intro');
+      const [results, setResults] = useState([]);
+      const [trials, setTrials] = useState([]);
+      const [currentTrialIdx, setCurrentTrialIdx] = useState(0);
+      
+      const leftEmojiRef = useRef(null);
+      const rightEmojiRef = useRef(null);
+
+      const offsets = [0, -16.67, 16.67, -33.33, 33.33, -50, 50]; // ms offsets
+
+      useEffect(() => {
+        setTrials([...offsets].sort(() => Math.random() - 0.5));
+      }, []);
+
+      const runTrial = () => {
+        setPhase('waiting');
+        const offset = trials[currentTrialIdx];
+        
+        setTimeout(() => {
+          setPhase('test');
+          const startTime = performance.now();
+          
+          // Use requestAnimationFrame for 120Hz precision
+          const animate = (now) => {
+            const elapsed = now - startTime;
+            
+            // Left Emoji (Base)
+            if (elapsed >= 500 && leftEmojiRef.current) {
+              leftEmojiRef.current.style.opacity = 1;
+            }
+            // Right Emoji (Offset)
+            if (elapsed >= (500 + offset) && rightEmojiRef.current) {
+              rightEmojiRef.current.style.opacity = 1;
+            }
+
+            if (elapsed < 1000) {
+              requestAnimationFrame(animate);
+            } else {
+              setPhase('response');
+            }
+          };
+          requestAnimationFrame(animate);
+        }, 1000);
+      };
+
+      const handleResponse = (answer) => {
+        const newResult = { offset: trials[currentTrialIdx], response: answer };
+        setResults([...results, newResult]);
+        
+        if (currentTrialIdx < trials.length - 1) {
+          setCurrentTrialIdx(currentTrialIdx + 1);
+          setPhase('intro');
+        } else {
+          setPhase('finished');
+        }
+      };
+
+      if (phase === 'finished') {
+        return (
+          <div className="flex flex-col items-center justify-center min-h-screen p-4 text-center">
+            <h1 className="text-3xl font-bold mb-4">Test Complete</h1>
+            <pre className="bg-gray-800 p-4 rounded text-left overflow-auto max-w-full">
+              {JSON.stringify(results, null, 2)}
+            </pre>
+            <button onClick={() => window.location.reload()} className="mt-6 bg-blue-600 px-6 py-2 rounded">Restart</button>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col items-center justify-center min-h-screen p-4">
+          <h1 className="text-2xl mb-8">Synchrony Test</h1>
+          
+          <div className="flex gap-12 mb-12">
+            <div className="w-24 h-24 bg-gray-800 rounded flex items-center justify-center border-2 border-gray-600">
+              <span ref={leftEmojiRef} className="text-5xl opacity-0 transition-none">🟦</span>
+            </div>
+            <div className="w-24 h-24 bg-gray-800 rounded flex items-center justify-center border-2 border-gray-600">
+              <span ref={rightEmojiRef} className="text-5xl opacity-0 transition-none">🟦</span>
+            </div>
+          </div>
+
+          {phase === 'intro' && (
+            <button onClick={runTrial} className="bg-blue-600 px-10 py-4 rounded-xl text-xl font-bold">Start Trial</button>
+          )}
+
+          {phase === 'response' && (
+            <div className="flex gap-4">
+              <button onClick={() => handleResponse('No')} className="bg-red-600 px-8 py-4 rounded-lg">Asynchronous</button>
+              <button onClick={() => handleResponse('Yes')} className="bg-green-600 px-8 py-4 rounded-lg">Synchronous</button>
+            </div>
+          )}
+          
+          <div className="mt-8 text-gray-500">Trial {currentTrialIdx + 1} of {trials.length}</div>
+        </div>
+      );
+    }
+
     const root = ReactDOM.createRoot(document.getElementById('root'));
     root.render(<SynchronyTest />);
   </script>
