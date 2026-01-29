@@ -108,6 +108,20 @@
       const leftEmojiRef = useRef(null);
       const rightEmojiRef = useRef(null);
       
+      // Create a reusable audio context for haptic feedback
+      const audioContextRef = useRef(null);
+      
+      useEffect(() => {
+        // Initialize audio context on user interaction
+        const initAudio = () => {
+          if (!audioContextRef.current) {
+            audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+          }
+        };
+        document.addEventListener('touchstart', initAudio, { once: true });
+        return () => document.removeEventListener('touchstart', initAudio);
+      }, []);
+
       const timerRef = useRef(null);
       const hasRespondedRef = useRef(false);
       const flashEndTimeRef = useRef(0);
@@ -262,29 +276,33 @@
         if (hasRespondedRef.current || phase !== 'response') return;
         hasRespondedRef.current = true;
 
-        // Haptic feedback - iOS compatible
-        // iOS doesn't support navigator.vibrate, but we can trigger haptic through audio tap
+        // Haptic feedback - works on Android
+        if (navigator.vibrate) {
+          navigator.vibrate(10);
+        }
+
+        // Audio feedback - works on iOS and Android
         try {
-          // For Android/other devices
-          if (navigator.vibrate) {
-            navigator.vibrate(10);
-          }
-          // For iOS - trigger a silent, short audio beep to activate taptic engine
-          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const audioContext = audioContextRef.current || new (window.AudioContext || window.webkitAudioContext)();
+          if (!audioContextRef.current) audioContextRef.current = audioContext;
+          
           const oscillator = audioContext.createOscillator();
           const gainNode = audioContext.createGain();
           
           oscillator.connect(gainNode);
           gainNode.connect(audioContext.destination);
           
-          gainNode.gain.value = 0.01; // Very quiet
-          oscillator.frequency.value = 200;
+          // Short, pleasant click sound
+          gainNode.gain.setValueAtTime(0.3, audioContext.currentTime);
+          gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.03);
+          
+          oscillator.frequency.value = 800; // High pitch for crisp click
           oscillator.type = 'sine';
           
           oscillator.start(audioContext.currentTime);
-          oscillator.stop(audioContext.currentTime + 0.01); // 10ms
+          oscillator.stop(audioContext.currentTime + 0.03);
         } catch (e) {
-          // Silently fail if haptics not supported
+          // Silently fail if audio not supported
         }
 
         const responseTime = performance.now();
