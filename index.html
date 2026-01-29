@@ -28,15 +28,19 @@
       backface-visibility: hidden;
     }
     
-    /* Prevent pull-to-refresh and overscroll */
+    /* Prevent pull-to-refresh on test screens only */
     body {
       overscroll-behavior: none;
       -webkit-overflow-scrolling: touch;
-      touch-action: pan-x pan-y;
+    }
+    
+    /* Only lock scrolling during actual test trials */
+    body.no-scroll {
       position: fixed;
       width: 100%;
       height: 100%;
       overflow: hidden;
+      touch-action: pan-x pan-y;
     }
     
     /* Force GPU acceleration on all elements */
@@ -167,6 +171,7 @@
       }, []);
 
       const startTest = () => {
+        document.body.classList.add('no-scroll');
         setPhase('practice');
         setCurrentTrial(-1);
         // Give the DOM a moment to mount before starting the practice trial
@@ -232,6 +237,7 @@
         }
 
         if (currentTrial >= trials.length - 1) {
+          document.body.classList.remove('no-scroll');
           setPhase('complete');
         } else {
           setPhase('waiting');
@@ -246,17 +252,17 @@
       // Intro screen
       if (phase === 'intro') {
         return (
-          <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8" style={{ willChange: 'transform' }}>
-            <div className="max-w-md text-center">
-              <h1 className="text-3xl font-bold mb-4">Synchrony Perception Test</h1>
+          <div className="min-h-screen bg-gray-900 text-white p-6 py-12">
+            <div className="max-w-md mx-auto text-center">
+              <h1 className="text-3xl font-bold mb-6">Synchrony Perception Test</h1>
               
               {/* FPS Monitor Badge with Stress Test Animation */}
-              <div className="mb-6 relative">
+              <div className="mb-6">
                 <div className={`inline-block px-4 py-2 rounded-full text-sm font-mono ${is120Hz ? 'bg-green-900 text-green-400' : 'bg-yellow-900 text-yellow-400'}`}>
-                  Detected Refresh Rate: {fps}Hz
+                  {fps}Hz Detected
                 </div>
                 
-                {/* Spinning stress test indicators with will-change for GPU acceleration */}
+                {/* Spinning stress test indicators */}
                 <div className="flex justify-center gap-2 mt-3">
                   {[0, 1, 2, 3, 4].map((i) => (
                     <div
@@ -270,32 +276,28 @@
                     />
                   ))}
                 </div>
-                <p className="text-xs text-gray-500 mt-2">Animation running to maintain high refresh rate</p>
               </div>
               
-              {!is120Hz && fps > 0 && (
+              {!is120Hz && fps > 0 && fps < 100 && (
                 <div className="bg-yellow-600/20 border border-yellow-600 text-yellow-200 p-3 rounded-lg mb-6 text-sm">
-                  <strong>⚠️ Safari Limitation:</strong> Your screen is running at {fps}Hz. Safari may cap at 60Hz even on 120Hz displays. For best results:
-                  <ul className="mt-2 text-left list-disc list-inside">
-                    <li>Ensure Low Power Mode is OFF</li>
-                    <li>Close all other apps/tabs</li>
-                    <li>Keep screen fully bright</li>
-                    <li>Try scrolling the page before starting</li>
-                  </ul>
+                  <strong>⚠️ Limited to {fps}Hz</strong><br/>
+                  Turn off Low Power Mode and close other apps for best results.
                 </div>
               )}
               
-              <p className="mb-4">You will see two blue squares flash briefly, side by side.</p>
-              <p className="mb-4">If they appear <strong>synchronous</strong> (at the same time), tap <span className="text-green-400">YES</span>.</p>
-              <p className="mb-6">If they appear <strong>asynchronous</strong> (at different times), tap <span className="text-red-400">NO</span>.</p>
-              
-              <div className="space-y-3 mb-6 text-left bg-gray-800 p-4 rounded-lg text-sm">
-                <p>1. Use <strong>one hand</strong> for each button</p>
-                <p>2. Keep your device <strong>horizontal</strong> and stable</p>
-                <p>3. Tap as soon as the buttons light up</p>
+              <div className="bg-gray-800 p-6 rounded-lg mb-6 text-left space-y-3">
+                <p>Two blue squares will flash briefly.</p>
+                <p><span className="text-green-400 font-bold">YES</span> = They appeared at the same time</p>
+                <p><span className="text-red-400 font-bold">NO</span> = They appeared at different times</p>
               </div>
               
-              <p className="mb-4 text-gray-400">You'll start with 1 practice trial, then complete 11 test trials.</p>
+              <div className="bg-gray-800/50 p-4 rounded-lg mb-6 text-sm space-y-2">
+                <p>• Hold device horizontally</p>
+                <p>• Use one hand per button</p>
+                <p>• Respond quickly when buttons light up</p>
+              </div>
+              
+              <p className="text-gray-400 text-sm mb-6">1 practice trial + 11 test trials</p>
               
               <button
                 onClick={startTest}
