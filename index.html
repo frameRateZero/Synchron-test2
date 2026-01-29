@@ -445,7 +445,7 @@
             ))}
           </div>
 
-          <div className="mb-8 text-xl font-bold" style={{ color: '#2563eb' }}>
+          <div className="mb-8 text-xl font-bold" style={{ color: '#ffffff' }}>
             {currentTrial === -1 ? (
               <span>Practice Trial</span>
             ) : (
@@ -468,14 +468,14 @@
               <button 
                 onPointerDown={() => handleResponse('No')}
                 disabled={phase !== 'response'}
-                style={{ backgroundColor: phase === 'response' ? '#cd281e' : '#4a1410' }}
+                style={{ backgroundColor: phase === 'response' ? '#888888' : '#444444' }}
                 className="text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors shadow-lg disabled:cursor-not-allowed">
                 NO
               </button>
               <button 
                 onPointerDown={() => handleResponse('Yes')}
                 disabled={phase !== 'response'}
-                style={{ backgroundColor: phase === 'response' ? '#197d32' : '#0a2e15' }}
+                style={{ backgroundColor: phase === 'response' ? '#cccccc' : '#666666' }}
                 className="text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors shadow-lg disabled:cursor-not-allowed">
                 YES
               </button>
