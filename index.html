@@ -322,13 +322,14 @@
               
               <div className="bg-gray-800 p-6 rounded-lg mb-6 text-left space-y-3">
                 <p>Two blue squares will flash briefly.</p>
-                <p><span className="text-green-400 font-bold">YES</span> = They appeared at the same time</p>
-                <p><span className="text-red-400 font-bold">NO</span> = They appeared at different times</p>
+                <p><span className="text-blue-400 font-bold">SAME</span> = They appeared at the same time</p>
+                <p><span className="text-yellow-400 font-bold">LEFT</span> = Left appeared first</p>
+                <p><span className="text-green-400 font-bold">RIGHT</span> = Right appeared first</p>
               </div>
               
               <div className="bg-gray-800/50 p-4 rounded-lg mb-6 text-sm space-y-2">
                 <p>• Hold device vertically (portrait mode)</p>
-                <p>• Use one hand per button</p>
+                <p>• Three buttons: LEFT, SAME, RIGHT</p>
                 <p>• Respond quickly when buttons light up</p>
               </div>
               
@@ -395,7 +396,23 @@
               <h1 className="text-3xl font-bold mb-8 text-center">Test Complete!</h1>
               
               <div className="bg-gray-800 rounded-lg p-6 mb-6">
-                <h2 className="text-xl font-bold mb-4">CSV Format (Select All & Copy)</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">CSV Format</h2>
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([csvText], { type: 'text/csv' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `synchrony-test-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.csv`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    Download CSV
+                  </button>
+                </div>
                 <textarea
                   readOnly
                   value={csvText}
@@ -406,7 +423,23 @@
               </div>
 
               <div className="bg-gray-800 rounded-lg p-6">
-                <h2 className="text-xl font-bold mb-4">JSON Format (Select All & Copy)</h2>
+                <div className="flex justify-between items-center mb-4">
+                  <h2 className="text-xl font-bold">JSON Format</h2>
+                  <button
+                    onClick={() => {
+                      const blob = new Blob([jsonText], { type: 'application/json' });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = `synchrony-test-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    }}
+                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+                  >
+                    Download JSON
+                  </button>
+                </div>
                 <textarea
                   readOnly
                   value={jsonText}
@@ -422,7 +455,7 @@
 
       // Trial display
       return (
-        <div className="flex flex-col items-center justify-center min-h-screen text-white select-none touch-none" style={{ willChange: 'transform', backgroundColor: '#FFD700' }}>
+        <div className="flex flex-col items-center justify-start pt-20 min-h-screen text-white select-none touch-none" style={{ willChange: 'transform', backgroundColor: '#FFD700' }}>
           
           {/* Persistent FPS Monitor - Top Right */}
           <div className="fixed top-4 right-4 z-50">
@@ -453,7 +486,7 @@
             )}
           </div>
 
-          <div className="flex gap-8 items-center justify-center mb-8" style={{ height: '200px' }}>
+          <div className="flex gap-8 items-center justify-center mb-12" style={{ height: '200px' }}>
             <div className="w-32 h-32 flex items-center justify-center border-4 rounded-lg" style={{ borderColor: '#DAA520', backgroundColor: '#FFD700', willChange: 'transform' }}>
               <div ref={leftEmojiRef} className="w-20 h-20 rounded opacity-0 transition-none" style={{ backgroundColor: '#5555FF', filter: 'blur(2px)', willChange: 'opacity', transform: 'translateZ(0)' }}></div>
             </div>
@@ -463,21 +496,28 @@
           </div>
 
           {/* Fixed height status area to prevent layout shift */}
-          <div className="h-16 mb-4 flex items-center justify-center">
-            <div className="flex flex-col sm:flex-row gap-4 px-4">
+          <div className="h-20 mb-4 flex items-center justify-center">
+            <div className="flex flex-row gap-3 px-4">
               <button 
-                onPointerDown={() => handleResponse('No')}
+                onPointerDown={() => handleResponse('Left')}
                 disabled={phase !== 'response'}
                 style={{ backgroundColor: '#888888' }}
-                className="text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg disabled:cursor-not-allowed">
-                NO
+                className="text-white font-bold py-3 px-6 rounded-lg text-lg shadow-lg disabled:cursor-not-allowed">
+                LEFT
               </button>
               <button 
-                onPointerDown={() => handleResponse('Yes')}
+                onPointerDown={() => handleResponse('Same')}
                 disabled={phase !== 'response'}
-                style={{ backgroundColor: '#bbbbbb' }}
-                className="text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg disabled:cursor-not-allowed">
-                YES
+                style={{ backgroundColor: '#888888' }}
+                className="text-white font-bold py-3 px-6 rounded-lg text-lg shadow-lg disabled:cursor-not-allowed">
+                SAME
+              </button>
+              <button 
+                onPointerDown={() => handleResponse('Right')}
+                disabled={phase !== 'response'}
+                style={{ backgroundColor: '#888888' }}
+                className="text-white font-bold py-3 px-6 rounded-lg text-lg shadow-lg disabled:cursor-not-allowed">
+                RIGHT
               </button>
             </div>
           </div>
