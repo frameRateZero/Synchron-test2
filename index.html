@@ -262,9 +262,29 @@
         if (hasRespondedRef.current || phase !== 'response') return;
         hasRespondedRef.current = true;
 
-        // Haptic feedback - subtle vibration on button press
-        if (navigator.vibrate) {
-          navigator.vibrate(10); // 10ms vibration
+        // Haptic feedback - iOS compatible
+        // iOS doesn't support navigator.vibrate, but we can trigger haptic through audio tap
+        try {
+          // For Android/other devices
+          if (navigator.vibrate) {
+            navigator.vibrate(10);
+          }
+          // For iOS - trigger a silent, short audio beep to activate taptic engine
+          const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          
+          gainNode.gain.value = 0.01; // Very quiet
+          oscillator.frequency.value = 200;
+          oscillator.type = 'sine';
+          
+          oscillator.start(audioContext.currentTime);
+          oscillator.stop(audioContext.currentTime + 0.01); // 10ms
+        } catch (e) {
+          // Silently fail if haptics not supported
         }
 
         const responseTime = performance.now();
@@ -341,7 +361,7 @@
               <div className="bg-gray-800/50 p-4 rounded-lg mb-6 text-sm space-y-2">
                 <p>• Hold device vertically (portrait mode)</p>
                 <p>• Three buttons: LEFT, SAME, RIGHT</p>
-                <p>• Respond quickly after blocks flash</p>
+                <p>• Respond quickly when buttons light up</p>
               </div>
               
               <p className="text-gray-400 text-sm mb-6">1 practice trial + 13 test trials</p>
