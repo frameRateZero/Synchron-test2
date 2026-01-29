@@ -468,15 +468,15 @@
               <button 
                 onPointerDown={() => handleResponse('No')}
                 disabled={phase !== 'response'}
-                style={{ backgroundColor: phase === 'response' ? '#888888' : '#444444' }}
-                className="text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors shadow-lg disabled:cursor-not-allowed">
+                style={{ backgroundColor: '#888888' }}
+                className="text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg disabled:cursor-not-allowed">
                 NO
               </button>
               <button 
                 onPointerDown={() => handleResponse('Yes')}
                 disabled={phase !== 'response'}
-                style={{ backgroundColor: phase === 'response' ? '#cccccc' : '#666666' }}
-                className="text-white font-bold py-4 px-8 rounded-lg text-xl transition-colors shadow-lg disabled:cursor-not-allowed">
+                style={{ backgroundColor: '#bbbbbb' }}
+                className="text-white font-bold py-4 px-8 rounded-lg text-xl shadow-lg disabled:cursor-not-allowed">
                 YES
               </button>
             </div>
