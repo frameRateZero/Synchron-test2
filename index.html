@@ -348,56 +348,61 @@
 
       // Results screen
       if (phase === 'complete') {
-        // Create CSV format
-        const csvSummary = ['Offset_ms,Synchronous_Count,Total_Trials,Proportion'];
-        const uniqueOffsets = [0, 8.333, 16.667, 25.0, 33.333, 41.667, 50.0];
-        uniqueOffsets.forEach(absOffset => {
-          // Match with tolerance for floating point comparison
-          const offsetResults = results.filter(r => Math.abs(Math.abs(r.offset) - absOffset) < 0.01);
-          const yesCount = offsetResults.filter(r => r.response === 'Yes').length;
-          const proportion = offsetResults.length > 0 ? (yesCount / offsetResults.length).toFixed(2) : '0.00';
-          csvSummary.push(`${absOffset.toFixed(3)},${yesCount},${offsetResults.length},${proportion}`);
-        });
-
+        // Create CSV format (just the trial details, no summary table)
         const csvDetails = ['Trial,Offset_ms,Response,FPS,Timestamp'];
         results.forEach(r => {
           csvDetails.push(`${r.trial},${r.offset},${r.response},${r.fps},${r.timestamp}`);
         });
+        const csvText = csvDetails.join('\n');
 
-        const csvText = csvSummary.join('\n') + '\n\n' + csvDetails.join('\n');
-
-        // Create JSON format
-        const jsonData = {
-          summary: [0, 8.333, 16.667, 25.0, 33.333, 41.667, 50.0].map(absOffset => {
-            const offsetResults = results.filter(r => Math.abs(Math.abs(r.offset) - absOffset) < 0.01);
-            const yesCount = offsetResults.filter(r => r.response === 'Yes').length;
-            const proportion = offsetResults.length > 0 ? yesCount / offsetResults.length : 0;
-            return {
-              offset_ms: parseFloat(absOffset.toFixed(3)),
-              synchronous_count: yesCount,
-              total_trials: offsetResults.length,
-              proportion: parseFloat(proportion.toFixed(2))
-            };
-          }),
-          all_trials: results.map(r => ({
-            trial: r.trial,
-            offset_ms: r.offset,
-            response: r.response,
-            fps: r.fps,
-            timestamp: r.timestamp
-          }))
-        };
-
-        const jsonText = JSON.stringify(jsonData, null, 2);
+        // Calculate summary data for histogram
+        const uniqueOffsets = [0, 8.333, 16.667, 25.0, 33.333, 41.667, 50.0];
+        const summaryData = uniqueOffsets.map(absOffset => {
+          const offsetResults = results.filter(r => Math.abs(Math.abs(r.offset) - absOffset) < 0.01);
+          const sameCount = offsetResults.filter(r => r.response === 'Same').length;
+          const proportion = offsetResults.length > 0 ? sameCount / offsetResults.length : 0;
+          return {
+            offset: absOffset,
+            percentage: Math.round(proportion * 100),
+            count: sameCount,
+            total: offsetResults.length
+          };
+        });
 
         return (
           <div className="flex flex-col items-center justify-center min-h-screen bg-gray-900 text-white p-8">
             <div className="max-w-4xl w-full">
               <h1 className="text-3xl font-bold mb-8 text-center">Test Complete!</h1>
               
+              {/* Visual Summary Histogram */}
+              <div className="bg-gray-800 rounded-lg p-6 mb-6">
+                <h2 className="text-xl font-bold mb-4">Synchrony Perception</h2>
+                <p className="text-sm text-gray-400 mb-4">Percentage of trials judged as "SAME" vs absolute offset (ms)</p>
+                <div className="space-y-3">
+                  {summaryData.map(data => (
+                    <div key={data.offset} className="flex items-center gap-3">
+                      <div className="w-16 text-right text-sm font-mono">{data.offset.toFixed(1)}ms</div>
+                      <div className="flex-1 bg-gray-700 rounded-full h-8 relative overflow-hidden">
+                        <div 
+                          className="bg-blue-500 h-full rounded-full transition-all duration-500"
+                          style={{ width: `${data.percentage}%` }}
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center text-sm font-bold text-white">
+                          {data.percentage}%
+                        </div>
+                      </div>
+                      <div className="w-16 text-left text-xs text-gray-400">
+                        {data.count}/{data.total}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              {/* CSV Download */}
               <div className="bg-gray-800 rounded-lg p-6 mb-6">
                 <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold">CSV Format</h2>
+                  <h2 className="text-xl font-bold">Trial Data (CSV)</h2>
                   <button
                     onClick={() => {
                       const blob = new Blob([csvText], { type: 'text/csv' });
@@ -417,33 +422,6 @@
                   readOnly
                   value={csvText}
                   className="w-full h-64 bg-gray-900 text-green-400 font-mono text-sm p-4 rounded border border-gray-700 focus:outline-none focus:border-blue-500"
-                  onClick={(e) => e.target.select()}
-                />
-                <p className="mt-2 text-sm text-gray-400">Click inside the box to select all, then Ctrl+C (or Cmd+C) to copy</p>
-              </div>
-
-              <div className="bg-gray-800 rounded-lg p-6">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-xl font-bold">JSON Format</h2>
-                  <button
-                    onClick={() => {
-                      const blob = new Blob([jsonText], { type: 'application/json' });
-                      const url = URL.createObjectURL(blob);
-                      const a = document.createElement('a');
-                      a.href = url;
-                      a.download = `synchrony-test-${new Date().toISOString().slice(0,19).replace(/:/g,'-')}.json`;
-                      a.click();
-                      URL.revokeObjectURL(url);
-                    }}
-                    className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
-                  >
-                    Download JSON
-                  </button>
-                </div>
-                <textarea
-                  readOnly
-                  value={jsonText}
-                  className="w-full h-96 bg-gray-900 text-blue-400 font-mono text-sm p-4 rounded border border-gray-700 focus:outline-none focus:border-blue-500"
                   onClick={(e) => e.target.select()}
                 />
                 <p className="mt-2 text-sm text-gray-400">Click inside the box to select all, then Ctrl+C (or Cmd+C) to copy</p>
