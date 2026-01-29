@@ -110,6 +110,7 @@
       
       const timerRef = useRef(null);
       const hasRespondedRef = useRef(false);
+      const flashEndTimeRef = useRef(0);
 
       // Frame-perfect offsets for 120Hz displays  
       // At 120Hz, each frame is 8.333ms
@@ -249,6 +250,7 @@
           if (elapsed < Math.abs(offsetMs) + duration + 16) {
             requestAnimationFrame(animate);
           } else {
+            flashEndTimeRef.current = performance.now();
             setPhase('response');
           }
         };
@@ -260,12 +262,16 @@
         if (hasRespondedRef.current || phase !== 'response') return;
         hasRespondedRef.current = true;
 
+        const responseTime = performance.now();
+        const reactionTimeMs = Math.round(responseTime - flashEndTimeRef.current);
+
         const offset = currentTrial === -1 ? 0 : trials[currentTrial];
         if (currentTrial >= 0) {
           setResults(prev => [...prev, { 
             trial: currentTrial + 1, 
             offset, 
             response,
+            reactionTime: reactionTimeMs,
             fps: fps, // Record FPS at time of response
             timestamp: new Date().toISOString()
           }]);
@@ -349,9 +355,9 @@
       // Results screen
       if (phase === 'complete') {
         // Create CSV format (just the trial details, no summary table)
-        const csvDetails = ['Trial,Offset_ms,Response,FPS,Timestamp'];
+        const csvDetails = ['Trial,Offset_ms,Response,ReactionTime_ms,FPS,Timestamp'];
         results.forEach(r => {
-          csvDetails.push(`${r.trial},${r.offset},${r.response},${r.fps},${r.timestamp}`);
+          csvDetails.push(`${r.trial},${r.offset},${r.response},${r.reactionTime},${r.fps},${r.timestamp}`);
         });
         const csvText = csvDetails.join('\n');
 
